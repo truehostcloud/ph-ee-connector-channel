@@ -9,4 +9,5 @@ public class CamelProperties {
     public static final String PARTY_LOOKUP_FAILED = "partyLookupFailed";
     public static final String CLIENTCORRELATIONID = "X-CorrelationID";
     public static final String BATCH_ID_HEADER = "X-BatchID";
+    public static final String PAYMENT_SCHEME_HEADER = "X-Payment-Scheme";
 }
