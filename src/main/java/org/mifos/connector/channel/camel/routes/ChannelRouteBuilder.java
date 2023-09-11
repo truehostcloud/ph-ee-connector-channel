@@ -58,6 +58,7 @@ import static org.mifos.connector.channel.zeebe.ZeebeVariables.IS_RTP_REQUEST;
 import static org.mifos.connector.channel.zeebe.ZeebeVariables.PARTY_ID;
 import static org.mifos.connector.channel.zeebe.ZeebeVariables.PARTY_ID_TYPE;
 import static org.mifos.connector.channel.zeebe.ZeebeVariables.AMS;
+import static org.mifos.connector.channel.zeebe.ZeebeVariables.PAYMENT_SCHEME;
 import static org.mifos.connector.channel.zeebe.ZeebeVariables.TENANT_ID;
 import static org.mifos.connector.channel.zeebe.ZeebeVariables.TRANSACTION_ID;
 import static org.mifos.connector.common.mojaloop.type.InitiatorType.CONSUMER;
@@ -94,6 +95,7 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
     private RestTemplate restTemplate;
     private String timer;
     private String restAuthHeader;
+    private static final String DEFAULT_COLLECTION_PAYMENT_SCHEME = "mpesa";
 
     public ChannelRouteBuilder(@Value("#{'${dfspids}'.split(',')}") List<String> dfspIds,
                                @Value("${bpmn.flows.payment-transfer}") String paymentTransferFlow,
@@ -390,6 +392,8 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
                         throw new RuntimeException("Requested tenant " + tenantId + " not configured in the connector!");
                     }
                     extraVariables.put(TENANT_ID, tenantId);
+                    String paymentScheme = getCollectionPaymentScheme(exchange.getIn().getHeader(PAYMENT_SCHEME_HEADER, String.class));
+                    extraVariables.put(PAYMENT_SCHEME, paymentScheme);
                     String tenantSpecificBpmn;
 
                     String channelRequestBodyString = exchange.getIn().getBody(String.class);
@@ -438,7 +442,7 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
                     logger.info("Final Value for ams : " + finalAmsVal);
                     extraVariables.put(AMS,finalAmsVal);
                     tenantSpecificBpmn = mpesaFlow.replace("{dfspid}", tenantId)
-                                 .replace("{ams}",finalAmsVal);
+                                 .replace("{ams}",finalAmsVal).replace("{ps}", paymentScheme);;
 
                     String amount = body.getJSONObject("amount").getString("amount");
 
@@ -764,5 +768,12 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
         }
         HttpEntity<String> entity = new HttpEntity<String>(null, httpHeaders);
         return entity;
+    }
+
+    private String getCollectionPaymentScheme(String paymentSchemeHeaderValue) {
+        if (paymentSchemeHeaderValue != null && !paymentSchemeHeaderValue.isBlank()) {
+            return paymentSchemeHeaderValue.toLowerCase();
+        }
+        return DEFAULT_COLLECTION_PAYMENT_SCHEME;
     }
 }
