@@ -3,11 +3,16 @@ package org.mifos.connector.channel.camel.routes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.google.i18n.phonenumbers.NumberParseException;
+import com.google.i18n.phonenumbers.PhoneNumberToCarrierMapper;
+import com.google.i18n.phonenumbers.PhoneNumberUtil;
+import com.google.i18n.phonenumbers.Phonenumber;
 import io.camunda.zeebe.client.ZeebeClient;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.component.bean.validator.BeanValidationException;
 import org.apache.camel.model.dataformat.JsonLibrary;
+import org.apache.commons.lang3.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.mifos.connector.channel.GSMA_API.GsmaP2PResponseDto;
@@ -95,6 +100,8 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
     private RestTemplate restTemplate;
     private String timer;
     private String restAuthHeader;
+    @Value("#{${payment-schemes}}")
+    private Map<String, String> paymentSchemes;
     private static final String DEFAULT_COLLECTION_PAYMENT_SCHEME = "mpesa";
 
     public ChannelRouteBuilder(@Value("#{'${dfspids}'.split(',')}") List<String> dfspIds,
@@ -392,8 +399,6 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
                         throw new RuntimeException("Requested tenant " + tenantId + " not configured in the connector!");
                     }
                     extraVariables.put(TENANT_ID, tenantId);
-                    String paymentScheme = getCollectionPaymentScheme(exchange.getIn().getHeader(PAYMENT_SCHEME_HEADER, String.class));
-                    extraVariables.put(PAYMENT_SCHEME, paymentScheme);
                     String tenantSpecificBpmn;
 
                     String channelRequestBodyString = exchange.getIn().getBody(String.class);
@@ -441,6 +446,8 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
 
                     logger.info("Final Value for ams : " + finalAmsVal);
                     extraVariables.put(AMS,finalAmsVal);
+                    String paymentScheme = getCollectionPaymentScheme(exchange.getIn().getHeader(PAYMENT_SCHEME_HEADER, String.class), primaryIdentifierVal);
+                    extraVariables.put(PAYMENT_SCHEME, paymentScheme);
                     tenantSpecificBpmn = mpesaFlow.replace("{dfspid}", tenantId)
                                  .replace("{ams}",finalAmsVal).replace("{ps}", paymentScheme);;
 
@@ -770,9 +777,27 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
         return entity;
     }
 
-    private String getCollectionPaymentScheme(String paymentSchemeHeaderValue) {
-        if (paymentSchemeHeaderValue != null && !paymentSchemeHeaderValue.isBlank()) {
+    private String getCollectionPaymentScheme(String paymentSchemeHeaderValue, String phoneNumber) {
+        if (StringUtils.isNotBlank(paymentSchemeHeaderValue)) {
             return paymentSchemeHeaderValue.toLowerCase();
+        }
+        if (StringUtils.isBlank(phoneNumber)) {
+            return DEFAULT_COLLECTION_PAYMENT_SCHEME;
+        }
+        String sanitizedNumber = phoneNumber.trim();
+        if (!sanitizedNumber.startsWith("+")) {
+            sanitizedNumber = "+" + sanitizedNumber;
+        }
+        try {
+            Phonenumber.PhoneNumber phone = PhoneNumberUtil.getInstance()
+                .parse(sanitizedNumber, Phonenumber.PhoneNumber.CountryCodeSource.UNSPECIFIED.name());
+            String carrierName = PhoneNumberToCarrierMapper.getInstance().getNameForNumber(phone, Locale.ENGLISH);
+            if (StringUtils.isNotBlank(carrierName)) {
+                return paymentSchemes.getOrDefault(carrierName.toLowerCase(), DEFAULT_COLLECTION_PAYMENT_SCHEME);
+            }
+        } catch (NumberParseException e) {
+            logger.warn("Unable to parse the provided phone number {}. The default payment scheme - {} will be used.",
+                sanitizedNumber, DEFAULT_COLLECTION_PAYMENT_SCHEME);
         }
         return DEFAULT_COLLECTION_PAYMENT_SCHEME;
     }

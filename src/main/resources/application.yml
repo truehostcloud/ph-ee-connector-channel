@@ -101,3 +101,6 @@ redis:
     enabled: false
     keyFormat: "clientCorrelationId_tenant_api"
     apiList: "/channel/transfer,/channel/collection,/channel/gsma/transaction,/channel/transactionRequest"
+
+# Maps the network provider to the payment scheme
+payment-schemes: '{"safaricom": "mpesa", "mtn": "momo", "airtel": "airtel"}'
