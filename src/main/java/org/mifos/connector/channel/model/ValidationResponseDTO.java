@@ -21,4 +21,6 @@ public class ValidationResponseDTO {
     public boolean reconciled;
     @JsonProperty("amsName")
     public String amsName;
+    @JsonProperty("clientName")
+    private String clientName;
 }
