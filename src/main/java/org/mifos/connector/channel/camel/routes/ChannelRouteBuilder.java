@@ -209,21 +209,19 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
                         throw new RuntimeException("Requested tenant " + tenantId + " not configured in the connector!");
                     }
                     Client client = clientProperties.getClient(tenantId);
-                    HttpHeaders httpHeaders = new HttpHeaders();
-                    httpHeaders.add("Platform-TenantId", tenantId);
-                    httpHeaders.add("Authorization",
-                            "Basic " + getEncoder().encodeToString((client.getClientId() + ":" + client.getClientSecret()).getBytes()));
 
-                    HttpEntity<String> entity = new HttpEntity<>(null, httpHeaders);
-                    ResponseEntity<String> exchange = restTemplate.exchange(restAuthHost + "/oauth/token?grant_type=client_credentials", HttpMethod.POST, entity, String.class);
-                    String token = new JSONObject(exchange.getBody()).getString("access_token");
+                    HttpEntity<String> entity = buildHeader(tenantId, null);
+                    if(operationsAuthEnabled){
+                        UriComponentsBuilder builder = buildParams(client);
+                        ResponseEntity<String> exchange = callAuthApi(builder,entity);
+                        JSONObject jsonObject = new JSONObject(exchange.getBody());
+                        String token = jsonObject.getString("access_token");
+
+                        entity = buildHeader(tenantId, token);
+                    }
 
                     String transactionId = e.getIn().getHeader("transactionId", String.class);
-
-                    httpHeaders.remove("Authorization");
-                    httpHeaders.add("Authorization", "Bearer " + token);
-                    entity = new HttpEntity<>(null, httpHeaders);
-                    exchange = restTemplate.exchange(operationsUrl + "/transfers?page=0&size=20&transactionId=" + transactionId, HttpMethod.GET, entity, String.class);
+                    ResponseEntity<String> exchange = restTemplate.exchange(operationsUrl + "/transfers?page=0&size=20&transactionId=" + transactionId, HttpMethod.GET, entity, String.class);
                     JSONArray contents = new JSONObject(exchange.getBody()).getJSONArray("content");
 
                     TransactionStatusResponseDTO response = new TransactionStatusResponseDTO();
