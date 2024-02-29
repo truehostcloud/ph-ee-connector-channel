@@ -270,16 +270,19 @@ public class ChannelRouteBuilder extends ErrorHandlerRouteBuilder {
                     Client client = clientProperties.getClient(tenantId);
                     String requestType = getRequestType(e.getIn().getHeader("requestType", String.class));
                     HttpEntity<String> entity = buildHeader(tenantId, null);
+                    ResponseEntity<String> authExchange;
+
                     if(operationsAuthEnabled){
                         UriComponentsBuilder builder = buildParams(client);
-                        ResponseEntity<String> exchange = callAuthApi(builder,entity);
-                        JSONObject jsonObject = new JSONObject(exchange.getBody());
-                        String token = jsonObject.getString("access_token");
-                        entity = buildHeader(tenantId, token);
+                         authExchange = callAuthApi(builder,entity);
                     }
                     else {
-                        entity = buildHeader(tenantId,null);
+                        authExchange = restTemplate.exchange(restAuthHost + "/oauth/token?grant_type=client_credentials", HttpMethod.POST, entity, String.class);
                     }
+
+                    JSONObject jsonObject = new JSONObject(authExchange.getBody());
+                    String token = jsonObject.getString("access_token");
+                    entity = buildHeader(tenantId, token);
                     String correlationId = e.getIn().getHeader(CLIENTCORRELATIONID, String.class);
                     ResponseEntity<String> exchange = callOpsTxnApi(requestType,correlationId,entity);
                     JSONArray contents = new JSONObject(exchange.getBody()).getJSONArray("content");
