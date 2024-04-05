@@ -13,6 +13,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.mifos.connector.channel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
+
 /**
  * Start a Zeebe workflow
  */
@@ -118,7 +120,8 @@ public class ZeebeProcessStarter {
                 .send()
                 .join();
 
-        logger.info("zeebee workflow instance from process {} started with transactionId {}, instance key: {}", workflowId, transactionId, instance.getProcessInstanceKey());
+        logger.info("zeebee workflow instance from process {} started with transactionId {} and correlation id {}, instance key: {}",
+            workflowId, transactionId, variables.get(CLIENT_CORRELATION_ID), instance.getProcessInstanceKey());
         return transactionId;
     }
 }
